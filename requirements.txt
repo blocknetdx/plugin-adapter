@@ -4,3 +4,6 @@ aiorpcX==0.18.4
 aiohttp==3.6.2
 kubernetes==11.0.0
 simplejson==3.17.0
+gunicorn
+uvloop~=0.14.0
+#git+git://github.com/spesmilo/electrumx.git@1.15.0#egg=electrumX

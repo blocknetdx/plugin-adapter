@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
+import os
 import logging
 import asyncio
 import json
 import time
 import datetime
 import simplejson
+import uvloop
 from decimal import Decimal
 from json import JSONDecodeError
 from multiprocessing import Process
@@ -13,12 +15,18 @@ from signal import signal, SIGINT
 from threading import Thread
 from aiohttp import web
 from aiorpcx import connect_rs, timeout_after
+# from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash
 from kubernetes import client, config
 from kubernetes.config import ConfigException
 
 
+uvloop.install()
+
+LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
+
+
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=LOGLEVEL,
     format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
     handlers=[
         logging.FileHandler("debug.log"),
@@ -26,10 +34,17 @@ logging.basicConfig(
     ])
 
 logger = logging.getLogger(__name__)
-# namespace = environ.get('NAMESPACE')
-namespace = 'cc-backend'
+# namespace = os.environ.get('NAMESPACE')
+namespace = 'cc-dev-backend'
 coins = {}
-allowed = ["BLOCK", "BTC", "BCH", "LTC", "DASH", "DOGE", "DGB", "PIVX", "RVN", "SYS", "TZC", "XSN"]
+allowed = [
+    "BLOCK",
+    # "BTC", "BCH",
+    # "LTC",
+    # "DASH", "DOGE", "DGB", "PIVX", "TZC", "SYS", "XSN"
+]
+
+hashx_cache = {}
 
 try:
     config.load_incluster_config()
@@ -69,8 +84,8 @@ class TCPSocket:
         try:
             self.session = await connect_rs(self.host, self.port).__aenter__()
             self.session.transport._framer.max_size = 0
-        except Exception as e:
-            logger.error("[client] ERROR: Error connecting!", e)
+        except Exception:
+            logger.exception("[client] ERROR: Error connecting! Host: {}:{}".format(self.host, self.port))
             self.session = None
 
     async def reconnect_if_closing(self):
@@ -87,11 +102,10 @@ class TCPSocket:
             async with timeout_after(timeout):
                 return await self.session.send_request(command, message)
         except OSError:
-            logger.error(
-                "[client] ERROR: Could not connect! Is the Electrum X server running on port " + str(self.port) + "?")
+            logger.exception("[client] ERROR: Could not connect! Is the Electrum X server running on port " + str(self.port) + "?")
             return OS_ERROR
-        except Exception as e:
-            logger.error("[client] ERROR: Error sending request!", e)
+        except Exception:
+            logger.exception("[client] ERROR: Error sending request! Command: {} Host: {}:{}".format(command, self.host, self.port))
             return OTHER_EXCEPTION
 
     async def send_batch(self, command, message=None, timeout=30):
@@ -108,11 +122,10 @@ class TCPSocket:
 
                 return batch.results
         except OSError:
-            logger.error(
-                "[client] ERROR: Could not connect! Is the Electrum X server running on port " + str(self.port) + "?")
+            logger.exception("[client] ERROR: Could not connect! Is the Electrum X server running on port " + str(self.port) + "?")
             return OS_ERROR
-        except Exception as e:
-            logger.error("[client] ERROR: Error sending request!", e)
+        except Exception:
+            logger.exception("[client] ERROR: Error sending request! Command: {} Host: {}:{}".format(command, self.host, self.port))
             return OTHER_EXCEPTION
 
 
@@ -159,7 +172,7 @@ def TimestampMillisec64():
 def parse_response(response: list):
     refined_result = []
 
-    logger.info("[server] response: " + str(response))
+    logger.debug("[server] response: " + str(response))
     try:
         for utxos in response:
             for item in utxos:
@@ -173,8 +186,8 @@ def parse_response(response: list):
 
         return refined_result
     except TypeError as e:  # we should think about proper error handling instead of returning None
-        logger.info("[ERROR] error: " + str(e))
-        return None
+        logger.exception("[ERROR] error: " + str(e))
+        return refined_result
 
 
 async def makesession():
@@ -231,27 +244,27 @@ async def getutxos(params):
         addresses = addresses.split(',')
 
     if len(addresses) == 0 or type(addresses) != list:
-        return None
+        return json.dumps({})
 
     timestart = TimestampMillisec64()
-    logger.info("[server] " + str(timestart) + " " + "xrmgetutxos: " + currency + " - " + str(addresses))
+    logger.debug("[server] " + str(timestart) + " " + "xrmgetutxos: " + currency + " - " + str(addresses))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get UTXOs from unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
 
     data = await socket.send_batch("blockchain.address.listunspent", addresses, timeout=30)
 
     if data == OS_ERROR or data == OTHER_EXCEPTION:
-        return None
+        return json.dumps({})
 
     res = {"utxos": parse_response(data)}
 
     if res is None or res['utxos'] is None:
         logging.info("[server] getutxos failed for coin: " + currency)
-        return None
+        return json.dumps({})
 
     logger.debug("DEBUG MESSAGE: ", res)
     logger.info("[server-end getutxos] completion time: {}ms".format(TimestampMillisec64() - timestart))
@@ -271,13 +284,14 @@ async def getrawtransaction(params):
         else:
             verbose = False
 
-    logger.info("[server] xrmgetrawtransaction: " + currency + " - " + str(txid))
+    logger.debug("[server] xrmgetrawtransaction: " + currency + " - " + str(txid))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get raw transaction from unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
+
     res = {'result': None, 'error': None}
 
     data = await socket.send_message("blockchain.transaction.get", [txid, verbose], timeout=30)
@@ -304,13 +318,14 @@ async def getrawmempool(params):
         else:
             verbose = False
 
-    logger.info("[server] xrmgetrawmempool: " + currency + " - " + str(verbose))
+    logger.debug("[server] xrmgetrawmempool: " + currency + " - " + str(verbose))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to getmemrawpool from unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
+
     res = {'result': None, 'error': None}
 
     data = await socket.send_message("getrawmempool", [verbose], timeout=30)
@@ -329,13 +344,14 @@ async def getrawmempool(params):
 async def getblockcount(params):
     currency = params[0]
 
-    logger.info("[server] xrmgetblockcount: " + currency)
+    logger.debug("[server] xrmgetblockcount: " + currency)
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get blockcount from unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
+
     res = {'result': None, 'error': None}
 
     data = await socket.send_message("getblockcount", (), timeout=30)
@@ -355,13 +371,14 @@ async def sendrawtransaction(params):
     currency = params[0]
     rawtx = params[1]
 
-    logger.info("[server] xrmsendrawtransaction: " + currency)
+    logger.debug("[server] xrmsendrawtransaction: " + currency)
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to sendtx to unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
+
     res = {'result': None, 'error': None}
 
     data = await socket.send_message("blockchain.transaction.broadcast", [rawtx], timeout=30)
@@ -385,13 +402,14 @@ async def gettransaction(params):
     txid = params[1]
     verbose = True
 
-    logger.info("[server] xrmgettransaction: " + currency + " - " + str(txid))
+    logger.debug("[server] xrmgettransaction: " + currency + " - " + str(txid))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get transaction from unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
+
     res = {'result': None, 'error': None}
 
     data = await socket.send_message("blockchain.transaction.get", [txid, verbose], timeout=30)
@@ -419,13 +437,14 @@ async def getblock(params):
         else:
             verbose = False
 
-    logger.info("[server] xrmgetblock: " + currency + " - " + str(hex_hash))
+    logger.debug("[server] xrmgetblock: " + currency + " - " + str(hex_hash))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get block from unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
+
     res = {'result': None, 'error': None}
 
     data = await socket.send_message("getblock", [hex_hash, verbose], timeout=30)
@@ -445,13 +464,14 @@ async def getblockhash(params):
     currency = params[0]
     height = params[1]
 
-    logger.info("[server] xrmgetblockhash: " + currency + " - " + str(height))
+    logger.debug("[server] xrmgetblockhash: " + currency + " - " + str(height))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get block hash from unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
+
     res = {'result': None, 'error': None}
 
     data = await socket.send_message("getblockhash", [int(height)], timeout=30)
@@ -471,13 +491,14 @@ async def getbalance(params):
     currency = params[0]
     address = params[1]
 
-    logger.info("[server] xrmgetbalance: " + currency + " - " + str(address))
+    logger.debug("[server] xrmgetbalance: " + currency + " - " + str(address))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get balance from unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
+
     res = {'result': None, 'error': None}
 
     data = await socket.send_message("blockchain.address.get_balance", [str(address)], timeout=30)
@@ -510,14 +531,14 @@ async def ping():
 async def plugin_block_heights():
     heights = {}
     for coin in coins:
-        logger.info("[server] getting block_count for coin: " + coin)
+        logger.debug("[server] getting block_count for coin: " + coin)
         data = await get_block_count(coin)
 
         if data is None:
             heights[coin] = None
             continue
 
-        logger.info("[server] finished block_count, block# " + str(data))
+        logger.debug("[server] finished block_count, block# " + str(data))
         heights[coin] = data
 
     res = {'result': heights, 'error': None}
@@ -528,7 +549,7 @@ async def plugin_block_heights():
 async def plugin_tx_fees():
     fees = {}
     for coin in coins:
-        logger.info("[server] getting fees for coin: " + coin)
+        logger.debug("[server] getting fees for coin: " + coin)
         data = await get_plugin_fees(coin)
 
         if data is None:
@@ -547,7 +568,7 @@ async def get_block_count(currency):
         logger.warning("[client] ERROR: Attempted to get info for unsupported coin " + currency)
         return None
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
 
     res = await socket.send_message("getblockcount", (), timeout=5)
 
@@ -562,7 +583,7 @@ async def get_plugin_fees(currency):
         logger.warning("[client] ERROR: Attempted to get info for unsupported coin " + currency)
         return None
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
 
     res = await socket.send_message("blockchain.relayfee", (), timeout=5)
 
@@ -585,29 +606,115 @@ async def gethistory(params):
         addresses = addresses.split(',')
 
     if len(addresses) == 0 or type(addresses) != list:
-        return None
+        return json.dumps({})
 
     timestart = TimestampMillisec64()
-    logger.info("[server] " + str(timestart) + " " + "xrmgethistory: " + currency + " - " + str(addresses))
+    logger.debug("[server] " + str(timestart) + " " + "xrmgethistory: " + currency + " - " + str(addresses))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get history from unsupported coin " + currency)
-        return None
+        return json.dumps({})
 
-    socket = coins[currency]['socket']
+    socket = aio_app[currency]
 
-    res = await socket.send_batch("gethistory", addresses, timeout=60)
+    if type(addresses) == str:
+        addresses = [addresses]
 
-    if res is None or res == OS_ERROR or res == OTHER_EXCEPTION:
+    hashX_list = []
+    if type(addresses) == list:
+        for addr in addresses:
+            print(addr)
+            if addr in hashx_cache:
+                hashX_list.append(hashx_cache[addr])
+            else:
+                hashx = await socket.send_message("gethashx", [addr], timeout=15)
+                logger.info(hashx)
+                hashx_cache[addr] = hashx[0]
+                hashX_list.append(hashx[0])
+    else:
+        if addresses in hashx_cache:
+            print(addresses)
+            hashX_list.append(hashx_cache[addresses])
+        else:
+            print(addresses)
+            hashx = await socket.send_message("gethashx", [addresses], timeout=15)
+            logger.info(hashx)
+            hashx_cache[addresses] = hashx[0]
+            hashX_list.append(hashx[0])
+
+    logger.info(hashX_list)
+
+    res = await socket.send_message("gethistoryhashx", [hashX_list], timeout=15)
+
+    try:
+        json.loads(res)
+        valid_data = True
+    except Exception:
+        valid_data = False
+
+    retries = 0
+    while valid_data is False and retries <= 3:
         logging.info("[server] gethistory failed for coin: " + currency)
 
+        retries += 1
+        res = await socket.send_message("gethistoryhashx", [hashX_list], timeout=15)
+
+        if res is None or res == OS_ERROR or res == OTHER_EXCEPTION or 'ERROR:' in res:
+            time.sleep(1)
+            continue
+        else:
+            break
+
+    if res is None or res == OS_ERROR or res == OTHER_EXCEPTION:
+        return json.dumps({})
+
+    # logger.debug("DEBUG MESSAGE: ", res)
+    logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
+
+    return json.dumps(res)
+
+
+async def address_get_history(params):
+    currency = params[0]
+    try:
+        addresses = json.loads(params[1])
+    except TypeError as e:
+        addresses = params[1]
+    except JSONDecodeError as e:
+        addresses = params[1]
+
+    if type(addresses) == str:
+        addresses = addresses.split(',')
+
+    if len(addresses) == 0 or type(addresses) != list:
         return None
+
+    timestart = TimestampMillisec64()
+    logger.info("[server] " + str(timestart) + " " + "xrmgetaddresshistory: " + currency + " - " + str(addresses))
+
+    if currency not in coins.keys():
+        logger.warning("[client] ERROR: Attempted to get address history from unsupported coin " + currency)
+        return None
+
+    socket = aio_app[currency]
+
+    try:
+        res = await socket.send_batch("blockchain.address.get_history", addresses, timeout=60)
+    except Exception:
+        logging.exception("Exception occured while obtaining history")
+
+        return []
+
+    if res is None or res == OS_ERROR or res == OTHER_EXCEPTION:
+        logging.info("[server] getaddresshistory failed for coin: " + currency)
+
+        return []
         
     if len(res) == 1:
         res = res[0]
 
     logger.debug("DEBUG MESSAGE: ", res)
-    logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
+    logger.info("[server-end getaddresshistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
 
     return json.dumps(res)
 
@@ -626,6 +733,7 @@ async def switchcase(requestjson):
         'fees': plugin_tx_fees(),
         'getbalance': getbalance(requestjson['params']),
         'gethistory': gethistory(requestjson['params']),
+        'getaddresshistory': address_get_history(requestjson['params']),
         'ping': ping()
     }
 
@@ -634,7 +742,12 @@ async def switchcase(requestjson):
 
 @routes.post("/")
 async def handle(request):
-    return web.Response(text=await switchcase(await request.json()))
+    try:
+        data = await request.json()
+        return web.Response(text=await switchcase(data))
+    except JSONDecodeError as e:
+        err = {'error': '400 Bad Request: json decode error'}
+        raise web.HTTPBadRequest(text=json.dumps(err))
 
 
 @routes.get("/height")
@@ -652,17 +765,17 @@ def run_app(port: int):
 
     aio_app.add_routes(routes)
 
-    app_process = Process(target=web.run_app, kwargs={
-        "app": aio_app,
-        "host": "0.0.0.0",
-        "port": port
-    })
+    # app_process = Process(target=web.run_app, kwargs={
+    #     "app": aio_app,
+    #     "host": "0.0.0.0",
+    #     "port": port
+    # })
 
-    print("[server] Starting server.")
-    app_process.start()
+    # print("[server] Starting server.")
+    # app_process.start()
 
-    heartbeat_thread = HeartbeatThread()
-    heartbeat_thread.start()
+    # heartbeat_thread = HeartbeatThread()
+    # heartbeat_thread.start()
 
 
 def sigint_handler(sig, frame):
@@ -686,6 +799,25 @@ def sigint_handler(sig, frame):
         print("Awaiting thread join.")
 
 
+async def connect_socket(socket):
+    await socket.connect()
+
+    return socket
+
+
+async def start_background_tasks(app):
+    for currency in coins:
+        host = coins[currency]['host']
+        port = coins[currency]['port']
+
+        socket = TCPSocket(host, port + 1000)
+
+        task = asyncio.create_task(connect_socket(socket))
+        app[currency] = socket
+
+        print("[adapter] Registered host " + host + " port " + str(port) + " for coin " + currency)
+
+
 def main():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -707,10 +839,13 @@ def main():
     signal(SIGINT, sigint_handler)
 
 
-if __name__ == '__main__':
-    main()
+# main()
+
+# if __name__ == '__main__':
+#     main()
 
 aio_app.add_routes(routes)
+aio_app.on_startup.append(start_background_tasks)
 app = aio_app
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

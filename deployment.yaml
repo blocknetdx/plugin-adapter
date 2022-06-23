@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-plugin
-  namespace: cc-backend
+  name: dev-plugin-adapter
+  namespace: cc-dev-backend
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
-      app: demo-plugin
+      app: dev-plugin-adapter
   template:
     metadata:
       labels:
-        app: demo-plugin
+        app: dev-plugin-adapter
     spec:
       imagePullSecrets:
       - name: pipeline-docker-registry
       containers:
-      - name: demo-plugin
+      - name: dev-plugin-adapter
         image: ${CICD_IMAGE}:${CICD_EXECUTION_SEQUENCE}
         imagePullPolicy: Always
         ports:
@@ -40,8 +40,8 @@ spec:
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: demo-plugin
-  namespace: cc-backend
+  name: dev-plugin-adapter
+  namespace: cc-dev-backend
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/enable-cors: "true"
@@ -49,24 +49,24 @@ metadata:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   rules:
-  - host: demo-plugin.core.cloudchainsinc.com
+  - host: dev-plugin.core.cloudchainsinc.com
     http:
       paths:
       - backend:
-          serviceName: demo-plugin
+          serviceName: dev-plugin-adapter
           servicePort: 5000
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: demo-plugin
-  namespace: cc-backend
+  name: dev-plugin-adapter
+  namespace: cc-dev-backend
   labels:
-    app: demo-plugin
+    app: dev-plugin-adapter
 spec:
   ports:
   - protocol: TCP
     port: 5000
     targetPort: 5000
   selector:
-    app: demo-plugin
+    app: dev-plugin-adapter
