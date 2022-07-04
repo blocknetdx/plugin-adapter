@@ -1,6 +1,5 @@
-# docker build --build-arg cores=8 -t atcsecure/daemonwrapper:latest .
 FROM python:3.7
-LABEL maintainer="atcsecure"
+LABEL maintainer="Blocknet"
 RUN apt-get update
 RUN mkdir /app
 WORKDIR /app

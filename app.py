@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from os import environ
 import logging
 import asyncio
 import json
@@ -13,8 +14,8 @@ from signal import signal, SIGINT
 from threading import Thread
 from aiohttp import web
 from aiorpcx import connect_rs, timeout_after
-from kubernetes import client, config
-from kubernetes.config import ConfigException
+#from kubernetes import client, config
+#from kubernetes.config import ConfigException
 
 
 logging.basicConfig(
@@ -27,27 +28,36 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 # namespace = environ.get('NAMESPACE')
-namespace = 'cc-backend'
+# namespace = 'cc-backend'
+
 coins = {}
 allowed = ["BLOCK", "BTC", "BCH", "LTC", "DASH", "DOGE", "DGB", "PIVX", "RVN", "SYS", "TZC", "XSN"]
 
-try:
-    config.load_incluster_config()
-except ConfigException:
-    config.load_kube_config()
-
-v1 = client.CoreV1Api()
-
-ret = v1.list_namespaced_service(namespace, label_selector="app=utxoplugin", watch=False)
-for item in ret.items:
-    logger.info(item)
-    currency = item.metadata.labels['currency']
-
-    if currency not in allowed:
-        continue
-
-    host = "{}.{}.svc.cluster.local".format(item.metadata.name, namespace)
-
+#try:
+#    config.load_incluster_config()
+#except ConfigException:
+#    config.load_kube_config()
+#
+#v1 = client.CoreV1Api()
+#
+#ret = v1.list_namespaced_service(namespace, label_selector="app=utxoplugin", watch=False)
+#for item in ret.items:
+#    logger.info(item)
+#    currency = item.metadata.labels['currency']
+#
+#    if currency not in allowed:
+#        continue
+#
+#    host = "{}.{}.svc.cluster.local".format(item.metadata.name, namespace)
+#
+#    coins[currency] = {
+#        'host': host,
+#        'port': 8000
+#    }
+#
+utxo_plugins = environ.get('UTXO_PLUGIN_LIST')
+for utxo_plugin in utxo_plugins.split(","):
+    currency, host = utxo_plugin.split(":")
     coins[currency] = {
         'host': host,
         'port': 8000
