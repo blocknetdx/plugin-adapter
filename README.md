@@ -12,6 +12,9 @@ Within the EXR ENV, use this general form:
       UTXO_PLUGIN_LIST: 'BLOCK:172.31.8.23,SYS:172.31.10.15'
     stop_signal: SIGINT
     stop_grace_period: 5m
+    depends_on:
+      - utxo-plugin-BLOCK
+      - utxo-plugin-SYS
     logging:
       driver: "json-file"
       options:
