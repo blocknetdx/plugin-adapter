@@ -263,7 +263,7 @@ async def getutxos(params):
         logging.info("[server] getutxos failed for coin: " + currency)
         return None
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
     logger.info("[server-end getutxos] completion time: {}ms".format(TimestampMillisec64() - timestart))
 
     return json.dumps(res)
@@ -298,7 +298,7 @@ async def getrawtransaction(params):
     else:
         res['result'] = data
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
 
     return json.dumps(res)
 
@@ -331,7 +331,7 @@ async def getrawmempool(params):
     else:
         res['result'] = data
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
 
     return json.dumps(res)
 
@@ -356,7 +356,7 @@ async def getblockcount(params):
     else:
         res['result'] = data
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
 
     return json.dumps(res)
 
@@ -385,7 +385,7 @@ async def sendrawtransaction(params):
     else:
         res['result'] = data
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
 
     return json.dumps(res)
 
@@ -412,7 +412,7 @@ async def gettransaction(params):
     else:
         res['result'] = data
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
 
     return json.dumps(res)
 
@@ -446,7 +446,7 @@ async def getblock(params):
     else:
         res['result'] = data
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
 
     return json.dumps(res)
 
@@ -472,7 +472,7 @@ async def getblockhash(params):
     else:
         res['result'] = data
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
 
     return json.dumps(res)
 
@@ -504,7 +504,7 @@ async def getbalance(params):
 
         res['result'] = data
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
 
     return json.dumps(res)
 
@@ -616,7 +616,7 @@ async def gethistory(params):
     if len(res) == 1:
         res = res[0]
 
-    logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
     logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
 
     return json.dumps(res)
