@@ -6,8 +6,8 @@ Within the EXR ENV, use this general form:
   plugin-adapter:
     image: blocknetdx/plugin-adapter
     restart: unless-stopped
-    ports:
-      - "5000:5000"
+#    ports:
+#      - "5000:5000"
     environment:
       UTXO_PLUGIN_LIST: 'BLOCK:172.31.8.23,SYS:172.31.10.15'
     stop_signal: SIGINT
