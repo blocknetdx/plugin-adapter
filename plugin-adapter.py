@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from os import environ
+import os
 import logging
 import asyncio
 import json
@@ -55,7 +55,7 @@ allowed = ["BLOCK", "BTC", "BCH", "LTC", "DASH", "DOGE", "DGB", "PIVX", "RVN", "
 #        'port': 8000
 #    }
 #
-utxo_plugins = environ.get('UTXO_PLUGIN_LIST')
+utxo_plugins = os.environ.get('UTXO_PLUGIN_LIST')
 for utxo_plugin in utxo_plugins.split(","):
     currency, host = utxo_plugin.split(":")
     coins[currency] = {
@@ -595,31 +595,118 @@ async def gethistory(params):
         addresses = addresses.split(',')
 
     if len(addresses) == 0 or type(addresses) != list:
-        return None
+        return json.dumps({})
 
     timestart = TimestampMillisec64()
-    logger.info("[server] " + str(timestart) + " " + "xrmgethistory: " + currency + " - " + str(addresses))
+    logger.debug("[server] " + str(timestart) + " " + "xrmgethistory: " + currency + " - " + str(addresses))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get history from unsupported coin " + currency)
+        return json.dumps({})
+
+    socket = coins[currency]['socket']
+
+    if type(addresses) == str:
+        addresses = [addresses]
+
+    hashX_list = []
+    if type(addresses) == list:
+        for addr in addresses:
+            print(addr)
+            if addr in hashx_cache:
+                hashX_list.append(hashx_cache[addr])
+            else:
+                hashx = await socket.send_message("gethashx", [addr], timeout=15)
+                logger.info(hashx)
+                hashx_cache[addr] = hashx[0]
+                hashX_list.append(hashx[0])
+    else:
+        if addresses in hashx_cache:
+            print(addresses)
+            hashX_list.append(hashx_cache[addresses])
+        else:
+            print(addresses)
+            hashx = await socket.send_message("gethashx", [addresses], timeout=15)
+            logger.info(hashx)
+            hashx_cache[addresses] = hashx[0]
+            hashX_list.append(hashx[0])
+
+    logger.info(hashX_list)
+
+    res = await socket.send_message("gethistoryhashx", [hashX_list], timeout=15)
+
+    try:
+        json.loads(res)
+        valid_data = True
+    except Exception:
+        valid_data = False
+
+    retries = 0
+    while valid_data is False and retries <= 3:
+        logging.info("[server] gethistory failed for coin: " + currency)
+
+        retries += 1
+        res = await socket.send_message("gethistoryhashx", [hashX_list], timeout=15)
+
+        if res is None or res == OS_ERROR or res == OTHER_EXCEPTION or 'ERROR:' in res:
+            time.sleep(1)
+            continue
+        else:
+            break
+
+    if res is None or res == OS_ERROR or res == OTHER_EXCEPTION:
+        return json.dumps({})
+
+    # logger.debug("DEBUG MESSAGE: ", res)
+    logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
+
+    return json.dumps(res)
+
+
+async def address_get_history(params):
+    currency = params[0]
+    try:
+        addresses = json.loads(params[1])
+    except TypeError as e:
+        addresses = params[1]
+    except JSONDecodeError as e:
+        addresses = params[1]
+
+    if type(addresses) == str:
+        addresses = addresses.split(',')
+
+    if len(addresses) == 0 or type(addresses) != list:
+        return None
+
+    timestart = TimestampMillisec64()
+    logger.info("[server] " + str(timestart) + " " + "xrmgetaddresshistory: " + currency + " - " + str(addresses))
+
+    if currency not in coins.keys():
+        logger.warning("[client] ERROR: Attempted to get address history from unsupported coin " + currency)
         return None
 
     socket = coins[currency]['socket']
 
-    res = await socket.send_batch("gethistory", addresses, timeout=60)
+    try:
+        res = await socket.send_batch("blockchain.address.get_history", addresses, timeout=60)
+    except Exception:
+        logging.exception("Exception occured while obtaining history")
+
+        return []
 
     if res is None or res == OS_ERROR or res == OTHER_EXCEPTION:
-        logging.info("[server] gethistory failed for coin: " + currency)
+        logging.info("[server] getaddresshistory failed for coin: " + currency)
 
-        return None
+        return []
         
     if len(res) == 1:
         res = res[0]
 
-    logger.debug("DEBUG MESSAGE: " + str(res))
-    logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
+    logger.debug("DEBUG MESSAGE: "+str(res))
+    logger.info("[server-end getaddresshistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
 
     return json.dumps(res)
+
 
 
 async def switchcase(requestjson):
@@ -636,10 +723,11 @@ async def switchcase(requestjson):
         'fees': plugin_tx_fees(),
         'getbalance': getbalance(requestjson['params']),
         'gethistory': gethistory(requestjson['params']),
+        'getaddresshistory': address_get_history(requestjson['params']),
         'ping': ping()
     }
 
-    return await switcher.get(requestjson['method'], ping)
+    return await switcher.get(requestjson['method'], "ping")
 
 
 @routes.post("/")
