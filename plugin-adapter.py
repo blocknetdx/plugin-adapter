@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 coins = {}
 allowed = ["BLOCK", "BTC", "BCH", "LTC", "DASH", "DOGE", "DGB", "PIVX", "RVN", "SYS", "TZC", "XSN"]
-
+hashx_cache = {}
 #try:
 #    config.load_incluster_config()
 #except ConfigException:
