@@ -14,8 +14,9 @@ from signal import signal, SIGINT
 from threading import Thread
 from aiohttp import web
 from aiorpcx import connect_rs, timeout_after
-#from kubernetes import client, config
-#from kubernetes.config import ConfigException
+
+# from kubernetes import client, config
+# from kubernetes.config import ConfigException
 
 
 logging.basicConfig(
@@ -33,15 +34,15 @@ logger = logging.getLogger(__name__)
 coins = {}
 allowed = ["BLOCK", "BTC", "BCH", "LTC", "DASH", "DOGE", "DGB", "PIVX", "RVN", "SYS", "TZC", "XSN"]
 hashx_cache = {}
-#try:
+# try:
 #    config.load_incluster_config()
-#except ConfigException:
+# except ConfigException:
 #    config.load_kube_config()
 #
-#v1 = client.CoreV1Api()
+# v1 = client.CoreV1Api()
 #
-#ret = v1.list_namespaced_service(namespace, label_selector="app=utxoplugin", watch=False)
-#for item in ret.items:
+# ret = v1.list_namespaced_service(namespace, label_selector="app=utxoplugin", watch=False)
+# for item in ret.items:
 #    logger.info(item)
 #    currency = item.metadata.labels['currency']
 #
@@ -582,7 +583,8 @@ async def get_plugin_fees(currency):
     return res
 
 
-async def gethistory(params):
+# gethistory with caching part, not working in state
+async def gethistory_alt(params):
     currency = params[0]
     try:
         addresses = json.loads(params[1])
@@ -631,10 +633,10 @@ async def gethistory(params):
             hashx_cache[addresses] = hashx[0]
             hashX_list.append(hashx[0])
 
-    logger.info(hashX_list)
-
+    # logger.info(hashX_list)
+    logging.info("[server]*** gethistory, gethistoryhashx: [" + str(hashX_list) + "]")
     res = await socket.send_message("gethistoryhashx", [hashX_list], timeout=15)
-
+    logging.info("[server]*** gethistory, res: " + str(res) + " *** " + str(type(res)))
     try:
         json.loads(res)
         valid_data = True
@@ -657,12 +659,56 @@ async def gethistory(params):
     if res is None or res == OS_ERROR or res == OTHER_EXCEPTION:
         return json.dumps({})
 
-    # logger.debug("DEBUG MESSAGE: ", res)
+    logger.debug("DEBUG MESSAGE: " + str(res))
     logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
 
     return json.dumps(res)
 
 
+async def gethistory(params):
+    # VERSION WITHOUT CACHING
+    currency = params[0]
+    try:
+        addresses = json.loads(params[1])
+    except TypeError as e:
+        addresses = params[1]
+    except JSONDecodeError as e:
+        addresses = params[1]
+
+    if type(addresses) == str:
+        addresses = addresses.split(',')
+
+    if len(addresses) == 0 or type(addresses) != list:
+        return json.dumps([])
+
+    timestart = TimestampMillisec64()
+    logger.info("[server] " + str(timestart) + " " + "xrmgethistory: " + currency + " - " + str(addresses))
+
+    if currency not in coins.keys():
+        logger.warning("[client] ERROR: Attempted to get history from unsupported coin " + currency)
+        return None
+
+    socket = coins[currency]['socket']
+
+    res = await socket.send_batch("gethistory", addresses, timeout=60)
+
+    if res is None or res == OS_ERROR or res == OTHER_EXCEPTION:
+        logging.info("[server] gethistory failed for coin: " + currency)
+
+        return json.dumps([])
+
+    if len(res) == 1:
+        res = res[0]
+    # DEBUG! PURGE EMPTY LISTS IN LIST?
+    res = [e for e in res if e]
+
+    logger.debug("DEBUG MESSAGE: " + str(res))
+    logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
+
+    return json.dumps(res)
+
+
+# address_get_history(params), no more used, replaced by gethistory
 async def address_get_history(params):
     currency = params[0]
     try:
@@ -698,15 +744,14 @@ async def address_get_history(params):
         logging.info("[server] getaddresshistory failed for coin: " + currency)
 
         return []
-        
+
     if len(res) == 1:
         res = res[0]
 
-    logger.debug("DEBUG MESSAGE: "+str(res))
+    logger.debug("DEBUG MESSAGE: " + str(res))
     logger.info("[server-end getaddresshistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
 
     return json.dumps(res)
-
 
 
 async def switchcase(requestjson):
@@ -723,7 +768,7 @@ async def switchcase(requestjson):
         'fees': plugin_tx_fees(),
         'getbalance': getbalance(requestjson['params']),
         'gethistory': gethistory(requestjson['params']),
-        'getaddresshistory': address_get_history(requestjson['params']),
+        # 'getaddresshistory': address_get_history(requestjson['params']),
         'ping': ping()
     }
 
