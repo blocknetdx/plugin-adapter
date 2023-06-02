@@ -560,7 +560,7 @@ async def get_block_count(currency):
 
     socket = coins[currency]['socket']
 
-    res = await socket.send_message("getblockcount", (), timeout=5)
+    res = await socket.send_message("getblockcount", (), timeout=1)
 
     if res == OS_ERROR or res == OTHER_EXCEPTION:
         return None
