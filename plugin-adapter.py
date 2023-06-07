@@ -575,7 +575,7 @@ async def get_plugin_fees(currency):
 
     socket = coins[currency]['socket']
 
-    res = await socket.send_message("blockchain.relayfee", (), timeout=5)
+    res = await socket.send_message("blockchain.relayfee", (), timeout=1)
 
     if res == OS_ERROR or res == OTHER_EXCEPTION:
         return None
