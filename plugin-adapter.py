@@ -550,9 +550,17 @@ async def plugin_block_heights():
 
 async def plugin_tx_fees():
     fees = {}
-    for coin in coins:
+    
+    # Create a list of coroutines for each coin
+    coroutines = [get_plugin_fees(coin) for coin in coins]
+
+    # Execute the coroutines concurrently
+    results = await asyncio.gather(*coroutines)
+
+    for i, coin in enumerate(coins):
+        data = results[i]
+
         logger.info("[server] getting fees for coin: " + coin)
-        data = await get_plugin_fees(coin)
 
         if data is None:
             fees[coin] = None
