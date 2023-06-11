@@ -520,6 +520,7 @@ async def ping():
 
 async def plugin_block_heights():
     heights = {}
+    start_time = time.time()
     for coin in coins:
         logger.info("[server] getting block_count for coin: " + coin)
         data = await get_block_count(coin)
@@ -530,9 +531,12 @@ async def plugin_block_heights():
 
         logger.info("[server] finished block_count, block# " + str(data))
         heights[coin] = data
-
+ 
     res = {'result': heights, 'error': None}
-
+    
+    end_time = time.time()
+    execution_time = end_time - start_time
+    logger.info(f"[client] Execution time for 'plugin_block_heights': {execution_time} seconds")
     return json.dumps(res)
 
 
