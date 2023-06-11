@@ -548,7 +548,7 @@ async def plugin_block_heights():
     end_time = time.time()
     execution_time = end_time - start_time
     logger.info(f"[server] finished plugin_block_heights result: {res}")
-    logger.info(f"[server] Execution time for 'plugin_block_heights': {execution_time} seconds")
+    #logger.info(f"[server] Execution time for 'plugin_block_heights': {execution_time} seconds")
     return json.dumps(res)
 
 
@@ -587,7 +587,7 @@ async def get_block_count(currency):
     res = await socket.send_message("getblockcount", (), timeout=2)
     end_time = time.time()
     execution_time = end_time - start_time
-    logger.info(f"[client] Execution time for 'get_block_count' {currency}: {execution_time} seconds")
+    #logger.info(f"[client] Execution time for 'get_block_count' {currency}: {execution_time} seconds")
     if res == OS_ERROR or res == OTHER_EXCEPTION:
         return None
 
