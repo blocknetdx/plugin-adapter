@@ -349,7 +349,7 @@ async def getblockcount(params):
     socket = coins[currency]['socket']
     res = {'result': None, 'error': None}
 
-    data = await socket.send_message("getblockcount", (), timeout=30)
+    data = await socket.send_message("getblockcount", (), timeout=2)
 
     if data == OS_ERROR or data == OTHER_EXCEPTION:
         logger.error("[server] ERROR: Error during getblockcount grabbing!")
