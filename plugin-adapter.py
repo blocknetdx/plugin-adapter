@@ -547,7 +547,7 @@ async def plugin_block_heights():
     
     end_time = time.time()
     execution_time = end_time - start_time
-    logger.info(f"[server] finished plugin_block_heights() result: {res}")
+    logger.info(f"[server] plugin_block_heights() {res}")
     #logger.info(f"[server] Execution time for 'plugin_block_heights': {execution_time} seconds")
     return json.dumps(res)
 
@@ -573,7 +573,7 @@ async def plugin_tx_fees():
         fees[coin] = Decimal('{:.8f}'.format(data))
 
     res = {'result': fees, 'error': None}
-    logger.info(f"[server] finished plugin_tx_fees() result: {res}") 
+    logger.info(f"[server] plugin_tx_fees() {res}") 
     
     return simplejson.dumps(res)
 
