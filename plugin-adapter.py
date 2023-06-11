@@ -782,35 +782,39 @@ async def address_get_history(params):
 
 async def switchcase(requestjson):
     switcher = {
-        'getutxos': getutxos(requestjson['params']),
-        'getrawtransaction': getrawtransaction(requestjson['params']),
-        'getrawmempool': getrawmempool(requestjson['params']),
-        'getblockcount': getblockcount(requestjson['params']),
-        'sendrawtransaction': sendrawtransaction(requestjson['params']),
-        'gettransaction': gettransaction(requestjson['params']),
-        'getblock': getblock(requestjson['params']),
-        'getblockhash': getblockhash(requestjson['params']),
-        'heights': plugin_block_heights(),
-        'fees': plugin_tx_fees(),
-        'getbalance': getbalance(requestjson['params']),
-        'gethistory': gethistory(requestjson['params']),
-        'ping': ping()
+        'getutxos': await getutxos(requestjson['params']),
+        'getrawtransaction': await getrawtransaction(requestjson['params']),
+        'getrawmempool': await getrawmempool(requestjson['params']),
+        'getblockcount': await getblockcount(requestjson['params']),
+        'sendrawtransaction': await sendrawtransaction(requestjson['params']),
+        'gettransaction': await gettransaction(requestjson['params']),
+        'getblock': await getblock(requestjson['params']),
+        'getblockhash': await getblockhash(requestjson['params']),
+        'heights': await plugin_block_heights(),
+        'fees': await plugin_tx_fees(),
+        'getbalance': await getbalance(requestjson['params']),
+        'gethistory': await gethistory(requestjson['params']),
+        # 'getaddresshistory': await address_get_history(requestjson['params']),
+        'ping': await ping()
     }
-    coroutine = await switcher.get(requestjson['method'], ping())
-    result = await coroutine
-    return result
+
+    return await switcher.get(requestjson['method'], "ping")
+
 
 @routes.post("/")
 async def handle(request):
     return web.Response(text=await switchcase(await request.json()))
 
+
 @routes.get("/height")
 async def get_heights(request):
     return web.Response(text=await plugin_block_heights())
 
+
 @routes.get("/fees")
 async def get_fees(request):
     return web.Response(text=await plugin_tx_fees())
+
 
 def run_app(port: int):
     global heartbeat_thread, app_process, aio_app
