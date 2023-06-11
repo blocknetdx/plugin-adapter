@@ -20,7 +20,7 @@ from aiorpcx import connect_rs, timeout_after
 
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
     handlers=[
         logging.FileHandler("debug.log"),
@@ -80,6 +80,9 @@ class TCPSocket:
         try:
             self.session = await connect_rs(self.host, self.port).__aenter__()
             self.session.transport._framer.max_size = 0
+        except OSError as e:
+            logger.error(f"[client] ERROR: Connection error to {self.host}:{self.port} - {e.strerror}")
+            self.session = None
         except Exception as e:
             logger.error("[client] ERROR: Error connecting!", e)
             self.session = None
@@ -349,7 +352,7 @@ async def getblockcount(params):
     socket = coins[currency]['socket']
     res = {'result': None, 'error': None}
 
-    data = await socket.send_message("getblockcount", (), timeout=30)
+    data = await socket.send_message("getblockcount", (), timeout=2)
 
     if data == OS_ERROR or data == OTHER_EXCEPTION:
         logger.error("[server] ERROR: Error during getblockcount grabbing!")
@@ -520,27 +523,48 @@ async def ping():
 
 async def plugin_block_heights():
     heights = {}
-    for coin in coins:
-        logger.info("[server] getting block_count for coin: " + coin)
-        data = await get_block_count(coin)
+    start_time = time.time()
+    
+    # Create a list of coroutines for each coin
+    coroutines = [get_block_count(coin) for coin in coins]
+
+    # Execute the coroutines concurrently
+    results = await asyncio.gather(*coroutines)
+
+    for i, coin in enumerate(coins):
+        data = results[i]
+
+        #logger.info("[server] getting block_count for coin: " + coin)
 
         if data is None:
             heights[coin] = None
             continue
 
-        logger.info("[server] finished block_count, block# " + str(data))
+        #logger.info("[server] finished block_count, block# " + str(data))
         heights[coin] = data
-
+    
     res = {'result': heights, 'error': None}
-
+    
+    end_time = time.time()
+    execution_time = end_time - start_time
+    logger.info(f"[server] plugin_block_heights() {res}")
+    #logger.info(f"[server] Execution time for 'plugin_block_heights': {execution_time} seconds")
     return json.dumps(res)
 
 
 async def plugin_tx_fees():
     fees = {}
-    for coin in coins:
-        logger.info("[server] getting fees for coin: " + coin)
-        data = await get_plugin_fees(coin)
+    
+    # Create a list of coroutines for each coin
+    coroutines = [get_plugin_fees(coin) for coin in coins]
+
+    # Execute the coroutines concurrently
+    results = await asyncio.gather(*coroutines)
+
+    for i, coin in enumerate(coins):
+        data = results[i]
+
+        #logger.info("[server] getting fees for coin: " + coin)
 
         if data is None:
             fees[coin] = None
@@ -549,7 +573,8 @@ async def plugin_tx_fees():
         fees[coin] = Decimal('{:.8f}'.format(data))
 
     res = {'result': fees, 'error': None}
-
+    logger.info(f"[server] plugin_tx_fees() {res}") 
+    
     return simplejson.dumps(res)
 
 
@@ -559,9 +584,11 @@ async def get_block_count(currency):
         return None
 
     socket = coins[currency]['socket']
-
+    start_time = time.time()
     res = await socket.send_message("getblockcount", (), timeout=2)
-
+    end_time = time.time()
+    execution_time = end_time - start_time
+    #logger.info(f"[client] Execution time for 'get_block_count' {currency}: {execution_time} seconds")
     if res == OS_ERROR or res == OTHER_EXCEPTION:
         return None
 
@@ -752,7 +779,6 @@ async def address_get_history(params):
     logger.info("[server-end getaddresshistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
 
     return json.dumps(res)
-
 
 async def switchcase(requestjson):
     switcher = {
