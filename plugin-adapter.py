@@ -797,8 +797,10 @@ async def switchcase(requestjson):
         # 'getaddresshistory': address_get_history(requestjson['params']),
         'ping': ping()
     }
-
-    return await switcher.get(requestjson['method'], "ping")
+    coroutine = switcher.get(requestjson['method'], ping())
+    result = await coroutine
+    return result
+    #return await switcher.get(requestjson['method'], "ping")
 
 
 @routes.post("/")
