@@ -1,6 +1,6 @@
 requests==2.7.0
 asyncio==3.4.3
-aiorpcX==0.22.1
+aiorpcX==0.18.7
 aiohttp==3.6.2
 #kubernetes==11.0.0
 simplejson==3.17.0
