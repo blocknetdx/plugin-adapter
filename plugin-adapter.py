@@ -782,18 +782,18 @@ async def address_get_history(params):
 
 async def switchcase(requestjson):
     switcher = {
-        'getutxos': await getutxos(requestjson['params']),
-        'getrawtransaction': await getrawtransaction(requestjson['params']),
-        'getrawmempool': await getrawmempool(requestjson['params']),
-        'getblockcount': await getblockcount(requestjson['params']),
-        'sendrawtransaction': await sendrawtransaction(requestjson['params']),
-        'gettransaction': await gettransaction(requestjson['params']),
-        'getblock': await getblock(requestjson['params']),
-        'getblockhash': await getblockhash(requestjson['params']),
-        'heights': await plugin_block_heights(),
-        'fees': await plugin_tx_fees(),
-        'getbalance': await getbalance(requestjson['params']),
-        'gethistory': await gethistory(requestjson['params']),
+        'getutxos': getutxos(requestjson['params']),
+        'getrawtransaction': getrawtransaction(requestjson['params']),
+        'getrawmempool': getrawmempool(requestjson['params']),
+        'getblockcount': getblockcount(requestjson['params']),
+        'sendrawtransaction': sendrawtransaction(requestjson['params']),
+        'gettransaction': gettransaction(requestjson['params']),
+        'getblock': getblock(requestjson['params']),
+        'getblockhash': getblockhash(requestjson['params']),
+        'heights': plugin_block_heights(),
+        'fees': plugin_tx_fees(),
+        'getbalance': getbalance(requestjson['params']),
+        'gethistory': gethistory(requestjson['params']),
         'ping': ping()
     }
     coroutine = await switcher.get(requestjson['method'], ping())
