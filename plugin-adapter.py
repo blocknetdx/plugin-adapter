@@ -521,9 +521,17 @@ async def ping():
 async def plugin_block_heights():
     heights = {}
     start_time = time.time()
-    for coin in coins:
+    
+    # Create a list of coroutines for each coin
+    coroutines = [get_block_count(coin) for coin in coins]
+
+    # Execute the coroutines concurrently
+    results = await asyncio.gather(*coroutines)
+
+    for i, coin in enumerate(coins):
+        data = results[i]
+
         logger.info("[server] getting block_count for coin: " + coin)
-        data = await get_block_count(coin)
 
         if data is None:
             heights[coin] = None
@@ -531,7 +539,7 @@ async def plugin_block_heights():
 
         logger.info("[server] finished block_count, block# " + str(data))
         heights[coin] = data
- 
+
     res = {'result': heights, 'error': None}
     
     end_time = time.time()
