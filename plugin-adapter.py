@@ -20,7 +20,7 @@ from aiorpcx import connect_rs, timeout_after
 
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.ERROR,
     format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
     handlers=[
         logging.FileHandler("debug.log"),
