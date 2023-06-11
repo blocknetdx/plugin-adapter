@@ -534,20 +534,21 @@ async def plugin_block_heights():
     for i, coin in enumerate(coins):
         data = results[i]
 
-        logger.info("[server] getting block_count for coin: " + coin)
+        #logger.info("[server] getting block_count for coin: " + coin)
 
         if data is None:
             heights[coin] = None
             continue
 
-        logger.info("[server] finished block_count, block# " + str(data))
+        #logger.info("[server] finished block_count, block# " + str(data))
         heights[coin] = data
-
+    
     res = {'result': heights, 'error': None}
     
     end_time = time.time()
     execution_time = end_time - start_time
-    logger.info(f"[client] Execution time for 'plugin_block_heights': {execution_time} seconds")
+    logger.info(f"[server] finished plugin_block_heights result: {res}")
+    logger.info(f"[server] Execution time for 'plugin_block_heights': {execution_time} seconds")
     return json.dumps(res)
 
 
