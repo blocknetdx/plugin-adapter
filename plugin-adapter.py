@@ -13,7 +13,7 @@ from multiprocessing import Process
 from signal import signal, SIGINT
 from threading import Thread
 from aiohttp import web
-from aiorpcx import connect_rs, timeout_after, ConnectTimeout, PeerConnection
+from aiorpcx import connect_rs, timeout_after
 
 # from kubernetes import client, config
 # from kubernetes.config import ConfigException
@@ -95,8 +95,8 @@ class TCPSocket:
             return OTHER_EXCEPTION
 
         try:
-            async with ConnectTimeout(timeout), PeerConnection(self.session) as connection:
-                return await connection.send_request(command, message)
+            async with timeout_after(timeout):
+                return await self.session.send_request(command, message)
         except OSError:
             logger.error(
                 "[client] ERROR: Could not connect! Is the Electrum X server running on port " + str(self.port) + "?")
@@ -112,12 +112,12 @@ class TCPSocket:
             return OTHER_EXCEPTION
 
         try:
-            async with ConnectTimeout(timeout), PeerConnection(self.session) as connection:
-                async with connection.send_batch() as batch:
+            async with timeout_after(timeout):
+                async with self.session.send_batch() as batch:
                     for msg in message:
                         batch.add_request(command, [msg])
 
-                return await batch.results()
+                return batch.results
         except OSError:
             logger.error(
                 "[client] ERROR: Could not connect! Is the Electrum X server running on port " + str(self.port) + "?")
