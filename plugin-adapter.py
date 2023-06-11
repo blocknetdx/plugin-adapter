@@ -80,6 +80,9 @@ class TCPSocket:
         try:
             self.session = await connect_rs(self.host, self.port).__aenter__()
             self.session.transport._framer.max_size = 0
+        except OSError as e:
+            logger.error(f"[client] ERROR: Connection error to {self.host}:{self.port} - {e.strerror}")
+            self.session = None
         except Exception as e:
             logger.error("[client] ERROR: Error connecting!", e)
             self.session = None
