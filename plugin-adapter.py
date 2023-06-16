@@ -84,7 +84,7 @@ class TCPSocket:
             logger.error(f"[client] ERROR: Connection error to {self.host}:{self.port} - {e.strerror}")
             self.session = None
         except Exception as e:
-            logger.error("[client] ERROR: Error connecting!", e)
+            logger.error("[client] ERROR: Error connecting!", str(e))
             self.session = None
 
     async def reconnect_if_closing(self):
@@ -105,7 +105,7 @@ class TCPSocket:
                 "[client] ERROR: Could not connect! Is the Electrum X server running on port " + str(self.port) + "?")
             return OS_ERROR
         except Exception as e:
-            logger.error("[client] ERROR: Error sending request!", e)
+            logger.error("[client] ERROR: Error sending request!", str(e))
             return OTHER_EXCEPTION
 
     async def send_batch(self, command, message=None, timeout=30):
@@ -126,7 +126,7 @@ class TCPSocket:
                 "[client] ERROR: Could not connect! Is the Electrum X server running on port " + str(self.port) + "?")
             return OS_ERROR
         except Exception as e:
-            logger.error("[client] ERROR: Error sending request!", e)
+            logger.error("[client] ERROR: Error sending request!", str(e))
             return OTHER_EXCEPTION
 
 
