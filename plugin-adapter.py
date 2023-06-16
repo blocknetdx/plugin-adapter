@@ -173,7 +173,7 @@ def TimestampMillisec64():
 def parse_response(response: list):
     refined_result = []
 
-    logger.info("[server] response: " + str(response))
+    logger.debug("[server] response: " + str(response))
     try:
         for utxos in response:
             for item in utxos:
@@ -248,7 +248,8 @@ async def getutxos(params):
         return None
 
     timestart = TimestampMillisec64()
-    logger.info("[server] " + str(timestart) + " " + "xrmgetutxos: " + currency + " - " + str(addresses))
+    logger.info("[server] " + str(timestart) + " " + "xrmgetutxos: " + currency ) 
+    #+ " - " + str(addresses))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get UTXOs from unsupported coin " + currency)
@@ -709,7 +710,8 @@ async def gethistory(params):
         return json.dumps([])
 
     timestart = TimestampMillisec64()
-    logger.info("[server] " + str(timestart) + " " + "xrmgethistory: " + currency + " - " + str(addresses))
+    logger.info("[server] " + str(timestart) + " " + "xrmgethistory: " + currency )
+    # + " - " + str(addresses))
 
     if currency not in coins.keys():
         logger.warning("[client] ERROR: Attempted to get history from unsupported coin " + currency)
@@ -729,8 +731,8 @@ async def gethistory(params):
     # DEBUG! PURGE EMPTY LISTS IN LIST?
     res = [e for e in res if e]
 
-    logger.debug("DEBUG MESSAGE: " + str(res))
-    logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
+    logger.debug("xrmgethistory: " + currency +"  RES=\n" + str(res))
+    #logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
 
     return json.dumps(res)
 
