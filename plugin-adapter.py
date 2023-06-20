@@ -649,7 +649,7 @@ async def gethistory(params):
     # DEBUG! PURGE EMPTY LISTS IN LIST?
     res = [e for e in res if e]
 
-    logger.debug("xrmgethistory: " + currency +"  RES=\n" + str(res))
+    logger.debug("DEBUG MESSAGE: " + str(res))
     logger.info("[server-end gethistory] completion time: {}ms".format(TimestampMillisec64() - timestart))
 
     return json.dumps(res)
