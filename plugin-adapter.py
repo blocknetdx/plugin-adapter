@@ -644,8 +644,6 @@ async def gethistory(params):
 
         return json.dumps([])
 
-    if len(res) == 1:
-        res = res[0]
     # DEBUG! PURGE EMPTY LISTS IN LIST?
     res = [e for e in res if e]
 
