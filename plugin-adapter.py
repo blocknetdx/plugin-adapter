@@ -636,8 +636,9 @@ async def gethistory(params):
         return None
 
     socket = coins[currency]['socket']
-
-    res = await socket.send_batch("gethistory", addresses, timeout=60)
+    
+    res = await socket.send_message("gethistory", [addresses], timeout=60)
+    #res = await socket.send_batch("gethistory", addresses, timeout=60)
 
     if res is None or res == OS_ERROR or res == OTHER_EXCEPTION:
         logging.info("[server] gethistory failed for coin: " + currency)
@@ -645,6 +646,7 @@ async def gethistory(params):
         return json.dumps([])
 
     # DEBUG! PURGE EMPTY LISTS IN LIST?
+    res = [res]
     res = [e for e in res if e]
 
     logger.debug("DEBUG MESSAGE: " + str(res))
