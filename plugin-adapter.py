@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # namespace = 'cc-backend'
 
 coins = {}
-allowed = ["BLOCK", "BTC", "BCH", "LTC", "DASH", "DOGE", "DGB", "PIVX", "RVN", "SYS", "TZC", "XSN", "UNO"]
+allowed = ["BLOCK", "BTC", "BCH", "LTC", "DASH", "DOGE", "DGB", "PIVX", "RVN", "SYS", "TZC", "XSN", "UNO", "PKOIN"]
 hashx_cache = {}
 # try:
 #    config.load_incluster_config()
